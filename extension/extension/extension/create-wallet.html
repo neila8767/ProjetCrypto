@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Créer votre wallet - SecureCloud</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .backup-warning {
+      background: rgba(255, 165, 2, 0.1);
+      border-left: 3px solid #ffa502;
+      padding: 12px;
+      margin: 16px 0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    #step2 {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 400px;
+      text-align: center;
+    }
+    #step2 .btn-primary {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">✨</div>
+      <h1>Créer votre wallet</h1>
+    </div>
+  </div>
+
+  <div id="step1">
+    <h2>Choisissez un mot de passe fort</h2>
+    <p class="description">
+      Ce mot de passe protégera vos clés localement.<br>
+      Choisissez un mot de passe <strong>fort et unique</strong>.
+    </p>
+
+    <div class="input-group">
+      <input type="password" id="password" placeholder="Mot de passe" class="input-field">
+      <input type="password" id="confirmPassword" placeholder="Confirmer le mot de passe" class="input-field">
+      <div class="password-strength" id="strengthMeter"><div class="strength-bar" style="width: 0%;"></div></div>
+      <div class="criteria-list" id="criteriaList">
+        <div class="criteria" id="criteria-length"><span class="criteria-icon">◻️</span><span>Au moins 12 caractères</span></div>
+        <div class="criteria" id="criteria-uppercase"><span class="criteria-icon">◻️</span><span>Au moins une majuscule (A-Z)</span></div>
+        <div class="criteria" id="criteria-lowercase"><span class="criteria-icon">◻️</span><span>Au moins une minuscule (a-z)</span></div>
+        <div class="criteria" id="criteria-number"><span class="criteria-icon">◻️</span><span>Au moins un chiffre (0-9)</span></div>
+        <div class="criteria" id="criteria-special"><span class="criteria-icon">◻️</span><span>Au moins un caractère spécial (!@#$%^&*)</span></div>
+      </div>
+    </div>
+    <div id="passwordError" class="error-message" style="display: none;">⚠️ Veuillez respecter tous les critères ci-dessus</div>
+    <button id="createWalletBtn" class="btn-primary" disabled>Créer le wallet</button>
+    <button id="cancelBtn" class="btn-secondary">Annuler</button>
+  </div>
+
+  <div id="step2" style="display: none;">
+    <h2>✅ Wallet créé avec succès !</h2>
+    <p class="description">
+      Votre portefeuille de clés est prêt.
+    </p>
+    <button id="closeBtn" class="btn-primary">Fermer</button>
+  </div>
+</div>
+<script src="create-wallet.js"></script>
+</body>
+</html>

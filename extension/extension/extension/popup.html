@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SecureCloud Wallet</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🔐</div>
+        <h1>SecureCloud</h1>
+      </div>
+      <div class="badge">
+        <span class="dot"></span>
+        Wallet sécurisé
+      </div>
+    </div>
+
+    <div id="content">
+      <!-- État initial : wallet non créé -->
+      <div id="noWalletView" class="view active">
+        <div class="illustration">
+          <div class="shield-icon">🛡️</div>
+        </div>
+        <h2>Bienvenue</h2>
+        <p class="description">
+          Créez votre portefeuille de clés pour<br>
+          protéger vos données dans le cloud.
+        </p>
+        <button id="createWalletBtn" class="btn-primary">
+          <span class="btn-icon">✨</span>
+          Créer un wallet
+        </button>
+      </div>
+
+      <!-- État : wallet existant mais verrouillé -->
+      <div id="lockedView" class="view" style="display: none;">
+        <div class="illustration">
+          <div class="lock-icon">🔒</div>
+        </div>
+        <h2>Wallet verrouillé</h2>
+        <p class="description">
+          Entrez votre mot de passe pour déverrouiller<br>
+          vos clés de chiffrement.
+        </p>
+        <div class="input-group">
+          <input type="password" id="unlockPassword" placeholder="Mot de passe" class="input-field">
+          <button id="unlockBtn" class="btn-primary">Déverrouiller</button>
+        </div>
+      </div>
+
+      <!-- État : wallet déverrouillé -->
+      <div id="unlockedView" class="view" style="display: none;">
+        <div class="status-card">
+          <div class="status-header">
+            <span class="status-icon">✅</span>
+            <span>Wallet déverrouillé</span>
+          </div>
+          <div class="status-info">
+            <div class="info-row">
+              <span class="info-label">Comptes actifs</span>
+              <span class="info-value" id="accountsCount">0</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Clés générées</span>
+              <span class="info-value" id="keysCount">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="accounts-section">
+          <div class="section-header">
+            <h3>Mes comptes</h3>
+            <button id="addAccountBtn" class="btn-icon-only" title="Ajouter un compte">+</button>
+            <button id="importAccountBtn" class="btn-icon-only" title="Importer un compte">📥</button>
+          </div>
+          <div id="accountsList" class="accounts-list"></div>
+        </div>
+
+        <div class="actions">
+          <button id="lockBtn" class="btn-secondary">
+            <span class="btn-icon">🔒</span>
+            Verrouiller
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span class="secure-badge">
+        <span class="shield">🛡️</span>
+        Chiffrement AES-256 + RSA-2048
+      </span>
+    </div>
+  </div>
+ 
+  <script src="popup.js"></script>
+</body>
+</html>

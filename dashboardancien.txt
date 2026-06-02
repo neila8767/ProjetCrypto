@@ -1,0 +1,896 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Folder,
+  FileText,
+  Share2,
+  Search,
+  Plus,
+  Upload as UploadIcon,
+  Download,
+  MoreVertical,
+  X,
+  ArrowLeft,
+  Trash2,
+  PenSquare
+} from 'lucide-react';
+
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
+import Layout from '../components/layout/Layout';
+import UploadService from '../services/uploadService';
+import DownloadService from '../services/downloadService';
+import ExtensionService from '../services/extensionService';
+import FolderService from '../services/FolderService';
+import JSZip from 'jszip';
+
+const Dashboard = () => {
+
+  const { user } = useAuth();
+
+  const [folders, setFolders] = useState([]);
+  const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [files, setFiles] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showNewMenu, setShowNewMenu] = useState(false);
+
+  const [uploading, setUploading] = useState(false);
+  const [waitingExtension, setWaitingExtension] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
+
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const [activeMenu, setActiveMenu] = useState(null);
+  const [activeMenuFolder, setActiveMenuFolder] = useState(null);
+  
+  // États pour le modal de partage
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareFileId, setShareFileId] = useState(null);
+  const [shareFileName, setShareFileName] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [decryptingKey, setDecryptingKey] = useState(false);
+
+  // Navigation dossiers
+  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [currentFolderName, setCurrentFolderName] = useState("");
+  
+  // Aperçu fichier
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  // =============================
+  // LOAD DATA
+  // =============================
+  const loadDashboard = async () => {
+    setLoading(true);
+    try {
+      const [foldersRes, sharedRes, filesRes] = await Promise.all([
+        api.get('/folders', { params: { parent_id: currentFolderId } }),
+        api.get('/shared-with-me'),
+        api.get('/files', { params: { folder_id: currentFolderId } })
+      ]);
+
+      if (foldersRes.data.success) setFolders(foldersRes.data.data);
+      if (sharedRes.data.success) setSharedWithMe(sharedRes.data.data);
+      if (filesRes.data.success) setFiles(filesRes.data.data);
+
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Erreur chargement du dossier");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recharger quand le dossier change
+  useEffect(() => {
+    loadDashboard();
+  }, [currentFolderId]);
+
+  // =============================
+  // FOLDER NAVIGATION
+  // =============================
+  const openFolder = (folderId, folderName) => {
+    setCurrentFolderId(folderId);
+    setCurrentFolderName(folderName);
+    setSearchTerm("");
+    setActiveMenu(null);
+    setActiveMenuFolder(null);
+  };
+
+  const goUp = () => {
+    setCurrentFolderId(null);
+    setCurrentFolderName("");
+    setSearchTerm("");
+    setActiveMenu(null);
+    setActiveMenuFolder(null);
+  };
+
+  // =============================
+  // FOLDER UPLOAD
+  // =============================
+  const handleFolderUpload = async () => {
+    if (!window.showDirectoryPicker) {
+      setErrorMessage("Navigateur non supporté");
+      return;
+    }
+
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      const rootFolder = await FolderService.createFolder(dirHandle.name, currentFolderId);
+      const rootFolderId = rootFolder.id;
+      const files = [];
+
+      async function walkDirectory(dirHandle, currentPath = '') {
+        for await (const entry of dirHandle.values()) {
+          const fullPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            files.push({ file, relativePath: fullPath });
+          } else {
+            await walkDirectory(entry, fullPath);
+          }
+        }
+      }
+
+      await walkDirectory(dirHandle);
+
+      const foldersMap = new Map();
+      const fileItems = files.map(f => ({
+        file: f.file,
+        folderPath: f.relativePath.includes('/') ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/')) : '__ROOT__'
+      }));
+
+      const uniquePaths = [...new Set(fileItems.map(f => f.folderPath).filter(p => p !== '__ROOT__'))];
+      uniquePaths.sort((a, b) => a.split('/').length - b.split('/').length);
+
+      for (const path of uniquePaths) {
+        const parts = path.split('/');
+        let parentId = rootFolderId;
+        let currentPath = '';
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          currentPath += (i === 0 ? part : '/' + part);
+          if (foldersMap.has(currentPath)) {
+            parentId = foldersMap.get(currentPath);
+          } else {
+            const folder = await FolderService.createFolder(part, parentId);
+            foldersMap.set(currentPath, folder.id);
+            parentId = folder.id;
+          }
+        }
+      }
+
+      setProgressMessage(`📤 Upload de ${fileItems.length} fichiers...`);
+      setWaitingExtension(true);
+      let uploaded = 0;
+      for (const item of fileItems) {
+        let targetFolderId = rootFolderId;
+        if (item.folderPath !== '__ROOT__') {
+          targetFolderId = foldersMap.get(item.folderPath);
+        }
+        
+        // Utiliser le flow d'upload existant
+        const prepared = await UploadService.prepareFileUpload(item.file);
+        
+        // Attendre déverrouillage wallet
+        const waitForUnlock = async () => {
+          while (true) {
+            const status = await window.myWallet?.isUnlocked();
+            if (status?.unlocked) return;
+            await new Promise(r => setTimeout(r, 800));
+          }
+        };
+        await waitForUnlock();
+        
+        await UploadService.uploadPrepared(prepared, targetFolderId);
+        uploaded++;
+        setProgressMessage(`📤 Upload: ${uploaded}/${fileItems.length} fichiers`);
+      }
+      setWaitingExtension(false);
+      setSuccessMessage(`✅ Dossier uploadé (${uploaded} fichiers)`);
+      await loadDashboard();
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setUploading(false);
+      setProgressMessage("");
+      setWaitingExtension(false);
+    }
+  };
+
+  // =============================
+  // DOWNLOAD FOLDER AS ZIP
+  // =============================
+  const handleDownloadFolder = async (folderId, folderName) => {
+    try {
+      setProgressMessage("📦 Récupération des fichiers...");
+      const filesRes = await api.get("/files", { params: { folder_id: folderId } });
+      const files = filesRes.data.data;
+      if (files.length === 0) {
+        alert("Le dossier est vide");
+        return;
+      }
+
+      const zip = new JSZip();
+
+      for (const file of files) {
+        setProgressMessage(`🔓 Déchiffrement de ${file.filename}...`);
+        const { decryptedBuffer } = await DownloadService.downloadFile(file.id, "personal");
+        zip.file(file.filename, decryptedBuffer);
+      }
+
+      setProgressMessage("📦 Création de l'archive ZIP...");
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${folderName}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSuccessMessage(`Dossier "${folderName}" téléchargé avec succès`);
+    } catch (err) {
+      setErrorMessage(err.message || "Erreur lors du téléchargement");
+    } finally {
+      setProgressMessage("");
+    }
+  };
+
+  // =============================
+  // DELETE FOLDER
+  // =============================
+  const handleDeleteFolder = async (folderId) => {
+    if (!window.confirm("Supprimer ce dossier et tout son contenu ?")) return;
+    try {
+      await api.delete(`/folders/${folderId}`);
+      setSuccessMessage("Dossier supprimé");
+      if (currentFolderId === folderId) goUp();
+      else await loadDashboard();
+    } catch (err) {
+      setErrorMessage("Erreur suppression dossier");
+    }
+    setActiveMenuFolder(null);
+  };
+
+  // =============================
+  // RENAME FOLDER
+  // =============================
+  const handleRenameFolder = async (folderId, oldName) => {
+    const newName = prompt("Nouveau nom :", oldName);
+    if (!newName) return;
+    try {
+      await api.put(`/folders/${folderId}`, { newName });
+      setSuccessMessage("Dossier renommé");
+      await loadDashboard();
+    } catch (err) {
+      setErrorMessage("Erreur rename dossier");
+    }
+    setActiveMenuFolder(null);
+  };
+
+  // =============================
+  // UPLOAD FLOW FIXED
+  // =============================
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      setErrorMessage('');
+      setSuccessMessage('');
+      setProgressMessage("📦 Préparation du fichier...");
+      setWaitingExtension(false);
+
+      // 1. Préparation AES + chiffrement
+      const prepared = await UploadService.prepareFileUpload(file);
+
+      // 2. demander extension
+      setProgressMessage("🔑 Attente déverrouillage extension...");
+      setWaitingExtension(true);
+
+      // 3. attendre unlock wallet
+      const waitForUnlock = async () => {
+        while (true) {
+          const status = await window.myWallet.isUnlocked();
+          if (status.unlocked) return;
+          await new Promise(r => setTimeout(r, 800));
+        }
+      };
+
+      await waitForUnlock();
+
+      setWaitingExtension(false);
+      setProgressMessage("📤 Upload en cours...");
+
+      // 4. upload backend
+      await UploadService.uploadPrepared(prepared, currentFolderId);
+
+      setSuccessMessage(`✅ Upload réussi : ${file.name}`);
+      setProgressMessage('');
+
+      await loadDashboard();
+
+    } catch (err) {
+      setErrorMessage("❌ " + err.message);
+      setProgressMessage('');
+      setWaitingExtension(false);
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  // =============================
+  // DOWNLOAD
+  // =============================
+  const handleDownload = async (fileId, filename) => {
+    try {
+      await DownloadService.downloadAndSave(fileId, 'personal');
+      setSuccessMessage(`📥 Téléchargement de "${filename}" démarré`);
+    } catch (err) {
+      setErrorMessage("❌ " + err.message);
+    }
+  };
+
+  // =============================
+  // DELETE FILE
+  // =============================
+  const handleDelete = async (fileId, fileName) => {
+    if (window.confirm(`Supprimer "${fileName}" définitivement ?`)) {
+      try {
+        const response = await api.delete(`/files/${fileId}`);
+        if (response.data.success) {
+          setSuccessMessage(`✅ "${fileName}" supprimé`);
+          await loadDashboard();
+        } else {
+          setErrorMessage("Erreur lors de la suppression");
+        }
+      } catch (err) {
+        setErrorMessage("❌ " + err.message);
+      }
+      setActiveMenu(null);
+    }
+  };
+
+  // =============================
+  // RENAME FILE
+  // =============================
+  const handleRenameFile = async (fileId, oldName) => {
+    const newName = prompt("Nouveau nom :", oldName);
+    if (!newName) return;
+    try {
+      await api.put(`/files/${fileId}`, { newName });
+      setSuccessMessage("Fichier renommé");
+      await loadDashboard();
+    } catch (err) {
+      setErrorMessage("Erreur rename fichier");
+    }
+    setActiveMenu(null);
+  };
+
+  // =============================
+  // PREVIEW FILE
+  // =============================
+  const handlePreview = async (fileId) => {
+    try {
+      setProgressMessage("🔐 Déchiffrement...");
+      const result = await DownloadService.downloadFile(fileId, "personal");
+      const blob = new Blob([result.decryptedBuffer]);
+      const url = URL.createObjectURL(blob);
+      setPreviewFile(result.filename);
+      setPreviewUrl(url);
+      setProgressMessage("");
+    } catch (err) {
+      setErrorMessage(err.message);
+    }
+  };
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewFile(null);
+  };
+
+  // =============================
+  // SHARE FILE VIA EMAIL
+  // =============================
+  const openShareModal = (fileId, fileName) => {
+    setShareFileId(fileId);
+    setShareFileName(fileName);
+    setShareEmail('');
+    setShowShareModal(true);
+    setActiveMenu(null);
+  };
+
+  const handleShare = async () => {
+    if (!shareEmail) {
+        setErrorMessage("Veuillez entrer une adresse email");
+        return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(shareEmail)) {
+        setErrorMessage("Email invalide");
+        return;
+    }
+
+    setSharing(true);
+    setErrorMessage('');
+    setDecryptingKey(true);
+    
+    try {
+        // 1. Récupérer la clé AES chiffrée du backend (chiffrée avec clé personnelle)
+        setProgressMessage("🔑 Récupération de la clé chiffrée...");
+        const keyResponse = await api.get(`/files/${shareFileId}/encrypted-key`);
+        
+        if (!keyResponse.data.success) {
+            throw new Error(keyResponse.data.message || "Impossible de récupérer la clé");
+        }
+        
+        const encryptedAesKeyBase64 = keyResponse.data.encryptedKey;
+        console.log("✅ Clé chiffrée récupérée", keyResponse.data.encryptedKey);
+        
+        // 2. Demander à l'extension de:
+        //    - déchiffrer la clé AES (avec clé privée personnelle)
+        //    - rechiffrer avec la clé publique du compte sharing
+        setProgressMessage("🔓 Déchiffrement et rechiffrement avec votre wallet...");
+        
+        if (!window.myWallet) {
+            throw new Error("Extension SecureCloud non détectée");
+        }
+        
+        // S'assurer que le wallet est déverrouillé
+        const status = await window.myWallet.isUnlocked();
+        if (!status.unlocked) {
+            setProgressMessage("🔐 Veuillez déverrouiller votre wallet...");
+            if (window.myWallet.openPopup) {
+                await window.myWallet.openPopup();
+            }
+            // Attendre le déverrouillage
+            let attempts = 0;
+            while (attempts < 30) {
+                const newStatus = await window.myWallet.isUnlocked();
+                if (newStatus.unlocked) break;
+                await new Promise(r => setTimeout(r, 1000));
+                attempts++;
+            }
+        }
+        
+        // Obtenir les deux versions de la clé
+        const { decryptedKey, reencryptedKey } = await ExtensionService.getAESKeyBothVersions(
+            encryptedAesKeyBase64,
+            'personal'
+        );
+        
+        console.log("✅ Clé AES déchiffrée, taille:", decryptedKey.length);
+        console.log("✅ Clé AES rechiffrée avec clé sharing, taille:", reencryptedKey.length);
+        
+        setDecryptingKey(false);
+        
+        // 3. Envoyer au backend pour partage
+        setProgressMessage("📤 Envoi du partage...");
+        
+        // Convertir la clé déchiffrée en base64 pour l'envoi
+        const decryptedKeyBase64 = btoa(String.fromCharCode(...decryptedKey));
+        
+        // Convertir la clé rechiffrée en base64
+        const reencryptedKeyBase64 = btoa(String.fromCharCode(...reencryptedKey));
+        
+        const response = await api.post('/sharefile', {
+            fileId: shareFileId,
+            recipientEmail: shareEmail,
+            decryptedAesKey: decryptedKeyBase64,
+            reencryptedAesKey: reencryptedKeyBase64
+        });
+        
+        if (response.data.success) {
+            setSuccessMessage(`✅ Fichier "${shareFileName}" partagé avec ${shareEmail}`);
+            setShowShareModal(false);
+            setShareEmail('');
+            setShareFileId(null);
+            setProgressMessage('');
+        } else {
+            throw new Error(response.data.message || "Erreur lors du partage");
+        }
+        
+    } catch (err) {
+        console.error("Erreur partage:", err);
+        setErrorMessage(err.message || err.response?.data?.message || "❌ Erreur lors du partage");
+        setDecryptingKey(false);
+    } finally {
+        setSharing(false);
+        setProgressMessage('');
+    }
+  };
+
+  // =============================
+  // FILE MENU
+  // =============================
+  const FileMenu = ({ fileId, fileName }) => (
+    <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-50">
+      <button
+        onClick={() => handlePreview(fileId)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        👁 Aperçu
+      </button>
+      <button
+        onClick={() => handleRenameFile(fileId, fileName)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        <PenSquare className="w-4 h-4 inline mr-2" /> Renommer
+      </button>
+      <button
+        onClick={() => openShareModal(fileId, fileName)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        🔗 Partager
+      </button>
+      <button
+        onClick={() => handleDelete(fileId, fileName)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-500 rounded-b-lg"
+      >
+        🗑 Supprimer
+      </button>
+    </div>
+  );
+
+  // =============================
+  // FOLDER MENU
+  // =============================
+  const FolderMenu = ({ folder }) => (
+    <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-50">
+      <button
+        onClick={() => handleDownloadFolder(folder.id, folder.name)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        <Download className="w-4 h-4 inline mr-2" /> Télécharger
+      </button>
+      <button
+        onClick={() => handleRenameFolder(folder.id, folder.name)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        <PenSquare className="w-4 h-4 inline mr-2" /> Renommer
+      </button>
+      <button
+        onClick={() => handleDeleteFolder(folder.id)}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-500"
+      >
+        <Trash2 className="w-4 h-4 inline mr-2" /> Supprimer
+      </button>
+    </div>
+  );
+
+  // =============================
+  // NEW MENU
+  // =============================
+  const NewMenu = () => (
+    <div ref={menuRef} className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-50">
+      <button
+        onClick={() => {
+          setShowNewMenu(false);
+          fileInputRef.current?.click();
+        }}
+        className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+      >
+        <UploadIcon className="w-4 h-4" />
+        Upload fichier
+      </button>
+      <button
+        onClick={() => {
+          setShowNewMenu(false);
+          handleFolderUpload();
+        }}
+        className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+      >
+        <Folder className="w-4 h-4" />
+        Upload dossier
+      </button>
+    </div>
+  );
+
+  // =============================
+  // SHARE MODAL
+  // =============================
+  const ShareModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Partager un fichier</h2>
+          <button
+            onClick={() => setShowShareModal(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-2">Fichier :</p>
+          <p className="font-medium text-blue-600">{shareFileName}</p>
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Email du destinataire
+          </label>
+          <input
+            type="email"
+            value={shareEmail}
+            onChange={(e) => setShareEmail(e.target.value)}
+            placeholder="exemple@email.com"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+            disabled={sharing || decryptingKey}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={handleShare}
+            disabled={sharing || decryptingKey}
+            className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+          >
+            {decryptingKey ? "🔓 Déchiffrement..." : sharing ? "📤 Envoi..." : "Partager"}
+          </button>
+          <button
+            onClick={() => setShowShareModal(false)}
+            disabled={sharing || decryptingKey}
+            className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+          >
+            Annuler
+          </button>
+        </div>
+        
+        {(decryptingKey || sharing) && progressMessage && (
+          <div className="mt-4 p-2 bg-blue-50 text-blue-700 rounded text-sm text-center">
+            {progressMessage}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // =============================
+  // FILTER
+  // =============================
+  const filteredFolders = folders.filter(f =>
+    f.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredFiles = files.filter(f =>
+    f.filename.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // =============================
+  // CLICK OUTSIDE MENU
+  // =============================
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowNewMenu(false);
+        setActiveMenu(null);
+        setActiveMenuFolder(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // =============================
+  // UI
+  // =============================
+  return (
+    <Layout>
+
+      <div className="max-w-6xl mx-auto relative">
+
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            {currentFolderId !== null && (
+              <button onClick={goUp} className="p-2 hover:bg-gray-100 rounded-full">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold">
+                {currentFolderName ? `Dossier: ${currentFolderName}` : "Tableau de bord"}
+              </h1>
+              <p className="text-gray-600">Bienvenue, {user?.email}</p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowNewMenu(!showNewMenu)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Nouveau
+            </button>
+            {showNewMenu && <NewMenu />}
+          </div>
+        </div>
+
+        {/* FILE INPUT */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
+
+        {/* SUCCESS */}
+        {successMessage && (
+          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg">
+            {successMessage}
+          </div>
+        )}
+
+        {/* ERROR */}
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* PROGRESS */}
+        {uploading && !decryptingKey && !sharing && (
+          <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg">
+            {progressMessage || "⏳ Upload en cours..."}
+          </div>
+        )}
+
+        {/* SEARCH */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <input
+            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+            placeholder="Rechercher..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* STATS */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="p-4 border rounded-lg bg-white">
+            <Folder className="text-blue-500" />
+            <p className="text-xl font-bold">{folders.length}</p>
+            <p className="text-sm text-gray-500">Dossiers</p>
+          </div>
+
+          <div className="p-4 border rounded-lg bg-white">
+            <Share2 className="text-green-500" />
+            <p className="text-xl font-bold">{sharedWithMe.length}</p>
+            <p className="text-sm text-gray-500">Partagés</p>
+          </div>
+
+          <div className="p-4 border rounded-lg bg-white">
+            <FileText className="text-purple-500" />
+            <p className="text-xl font-bold">{files.length}</p>
+            <p className="text-sm text-gray-500">Fichiers</p>
+          </div>
+        </div>
+
+        {/* FOLDERS SECTION */}
+        {filteredFolders.length > 0 && (
+          <>
+            <h2 className="text-lg font-bold mb-4">Dossiers</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+              {filteredFolders.map(folder => (
+                <div
+                  key={folder.id}
+                  className="border rounded-lg p-4 hover:shadow-md cursor-pointer"
+                  onDoubleClick={() => openFolder(folder.id, folder.name)}
+                >
+                  <div className="flex justify-between items-start">
+                    <Folder className="text-blue-500 w-8 h-8 mb-2" />
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveMenuFolder(activeMenuFolder === folder.id ? null : folder.id); }}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {activeMenuFolder === folder.id && <FolderMenu folder={folder} />}
+                    </div>
+                  </div>
+                  <p className="font-medium">{folder.name}</p>
+                  <p className="text-xs text-gray-500">Dossier</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* FILES SECTION */}
+        <h2 className="text-lg font-bold mb-4">Mes fichiers</h2>
+
+        {loading ? (
+          <p>Chargement...</p>
+        ) : filteredFiles.length === 0 ? (
+          <p className="text-gray-500">Aucun fichier dans ce dossier</p>
+        ) : (
+          <div className="bg-white border rounded-lg divide-y">
+            {filteredFiles.map(file => (
+              <div key={file.id} className="flex justify-between items-center p-4">
+                <div>
+                  <p className="font-medium">{file.filename}</p>
+                  <p className="text-xs text-gray-500">
+                    {file.size} bytes • {new Date(file.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 relative">
+                  <button
+                    onClick={() => handleDownload(file.id, file.filename)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                    title="Télécharger"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMenu(activeMenu === file.id ? null : file.id)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                    title="Plus d'options"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+
+                  {activeMenu === file.id && (
+                    <FileMenu fileId={file.id} fileName={file.filename} />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* PREVIEW MODAL */}
+        {previewUrl && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]" onClick={closePreview}>
+            <div className="bg-white p-4 rounded w-[80%] h-[80%] relative" onClick={(e) => e.stopPropagation()}>
+              <h2 className="font-bold mb-2">{previewFile}</h2>
+              <iframe src={previewUrl} className="w-full h-full" />
+              <button onClick={closePreview} className="absolute top-2 right-2 bg-white rounded-full p-1">❌</button>
+            </div>
+          </div>
+        )}
+
+        {/* EXTENSION POPUP */}
+        {waitingExtension && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999]">
+            <div className="bg-white p-6 rounded-lg text-center w-80">
+              <div className="animate-spin w-10 h-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h2 className="font-bold mb-2">🔐 Extension requise</h2>
+              <p className="text-sm text-gray-600">
+                Déverrouillez votre wallet pour continuer
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* SHARE MODAL */}
+        {showShareModal && <ShareModal />}
+
+      </div>
+    </Layout>
+  );
+};
+
+export default Dashboard;

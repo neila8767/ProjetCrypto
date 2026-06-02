@@ -1,0 +1,71 @@
+.app-header {
+  position: sticky;     /* reste en haut lors du défilement, mais ne flotte pas par-dessus le contenu */
+  top: 0;
+  z-index: 100;
+  background: #FFFFFF;
+  border-bottom: 1px solid #EAECEE;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
+.header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.8rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo-icon {
+  font-size: 1.8rem;
+}
+
+.logo-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #1A73E8;
+  letter-spacing: -0.3px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.header-nav a {
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #5F6368;
+  transition: color 0.2s;
+  padding: 0.4rem 0;
+}
+
+.header-nav a:hover {
+  color: #1A73E8;
+}
+
+.header-nav a.active {
+  color: #1A73E8;
+  border-bottom: 2px solid #1A73E8;
+}
+
+@media (max-width: 600px) {
+  .header-container {
+    flex-direction: column;
+    text-align: center;
+    padding: 0.8rem 1rem;
+  }
+  .header-nav {
+    gap: 1rem;
+  }
+}

@@ -1,0 +1,514 @@
+/* ========== BASE CLAIRE ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.login-page {
+  min-height: 100vh;
+  background: #F5F7FA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  padding: 1.5rem;
+}
+
+/* ========== CARTE PRINCIPALE (STYLE DRIVE ÉLARGI) ========== */
+.login-card {
+  background: #FFFFFF;
+  border-radius: 28px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  width: 100%;
+  max-width: 900px;
+  padding: 1.8rem 2rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.login-card:hover {
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* ========== EN-TÊTE : LOGO + TITRE ========== */
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.logo-hex {
+  width: 52px;
+  height: 52px;
+  background: #E8F0FE;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1A73E8;
+}
+
+.logo-text-container {
+  flex: 1;
+}
+
+.logo-text {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #202124;
+  letter-spacing: -0.3px;
+}
+
+.logo-sub {
+  font-size: 0.6rem;
+  color: #5F6368;
+  font-family: monospace;
+}
+
+/* ========== PROGRESS STEPS ========== */
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.progress-steps::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #E0E5EC;
+  z-index: 0;
+}
+
+.step-indicator {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  flex: 1;
+}
+
+.step-num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 28px;
+  border-radius: 50%;
+  background: #F1F3F4;
+  border: 1px solid #DADCE0;
+  color: #5F6368;
+  font-size: 12px;
+  margin-bottom: 6px;
+  transition: all 0.2s;
+}
+
+.step-indicator.active .step-num {
+  background: #1A73E8;
+  color: white;
+  border-color: #1A73E8;
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.2);
+}
+
+.step-label {
+  font-size: 0.65rem;
+  color: #5F6368;
+  display: block;
+  font-weight: 500;
+}
+
+.step-indicator.active .step-label {
+  color: #1A73E8;
+}
+
+/* ========== STATUS BAR ========== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F8F9FA;
+  border-radius: 40px;
+  padding: 0.4rem 1rem;
+  margin-bottom: 1.2rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #5F6368;
+  border: 1px solid #EAECEE;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 10px;
+  background: #E37400;
+}
+
+.status-dot.green {
+  background: #0D7A5F;
+}
+
+.status-dot.yellow {
+  background: #F9AB00;
+}
+
+.status-dot.red {
+  background: #E37400;
+}
+
+/* ========== EXTENSION STATUS ========== */
+.extension-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #F8F9FA;
+  border-radius: 40px;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
+/* ========== ALERTES ========== */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 20px;
+  margin: 0.8rem 0;
+  font-size: 0.8rem;
+}
+
+.alert-error {
+  background: #FFF4E5;
+  border-left: 4px solid #E37400;
+  color: #B45F00;
+}
+
+.alert-icon {
+  font-size: 1rem;
+}
+
+.alert-text {
+  flex: 1;
+}
+
+.error-action-btn {
+  background: none;
+  border: 1px solid #E37400;
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: #E37400;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.error-action-btn:hover {
+  background: #E37400;
+  color: white;
+}
+
+/* ========== FORMULAIRES ========== */
+.login-form, .otp-form {
+  margin-top: 0.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.8rem;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #5F6368;
+  margin-bottom: 6px;
+}
+
+.label-number {
+  background: #E8F0FE;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-family: monospace;
+  color: #1A73E8;
+}
+
+.form-group input {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #DADCE0;
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  outline: none;
+  color: #202124;
+}
+
+.form-group input:focus {
+  border-color: #1A73E8;
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.2);
+}
+
+.otp-input {
+  text-align: center;
+  font-size: 1.5rem !important;
+  letter-spacing: 6px;
+  font-weight: 600;
+}
+
+/* ========== BOUTONS ========== */
+.btn {
+  border: none;
+  border-radius: 40px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn-primary {
+  background: #1A73E8;
+  color: white;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1557B0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26,115,232,0.3);
+}
+
+.btn-primary:disabled {
+  background: #A0C4F0;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #1A73E8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+/* ========== ÉTAPE 2 : MULTI-WALLET ========== */
+.signature-step.multi-wallet {
+  margin-top: 1rem;
+}
+
+.step-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.step-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.step-header h3 {
+  font-size: 1rem;
+  color: #202124;
+  margin-bottom: 0.25rem;
+}
+
+.step-desc {
+  font-size: 0.7rem;
+  color: #5F6368;
+}
+
+.threshold-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #E8F0FE;
+  padding: 6px 16px;
+  border-radius: 40px;
+  margin-bottom: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.threshold-label {
+  color: #1A73E8;
+}
+
+.threshold-value {
+  background: white;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.threshold-check {
+  color: #0D7A5F;
+}
+
+.wallets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.wallet-signature-card {
+  background: #F8F9FA;
+  border-radius: 20px;
+  padding: 1rem;
+  border-left: 4px solid #DADCE0;
+}
+
+.wallet-signature-card.done {
+  border-left-color: #0D7A5F;
+  background: #E6F4EA;
+}
+
+.wallet-signature-card.signing {
+  border-left-color: #F9AB00;
+  background: #FFF8F0;
+}
+
+.wallet-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wallet-icon {
+  font-size: 1.5rem;
+}
+
+.wallet-info {
+  flex: 1;
+}
+
+.wallet-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.wallet-type {
+  font-size: 0.65rem;
+  color: #5F6368;
+  text-transform: uppercase;
+}
+
+.wallet-id {
+  font-size: 0.6rem;
+  font-family: monospace;
+  color: #9AA0A6;
+}
+
+.wallet-status .status-badge {
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #EAECEE;
+}
+
+.status-badge.done { background: #0D7A5F; color: white; }
+.status-badge.signing { background: #F9AB00; color: white; }
+.status-badge.error { background: #E37400; color: white; }
+
+.signature-message {
+  margin-top: 0.75rem;
+  font-size: 0.7rem;
+  color: #5F6368;
+}
+
+.help-box, .success-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #F8F9FA;
+  border-radius: 20px;
+  padding: 0.8rem;
+  margin-top: 1rem;
+}
+
+.help-icon, .success-icon {
+  font-size: 1.2rem;
+}
+
+.help-text {
+  font-size: 0.7rem;
+  flex: 1;
+}
+
+.help-link {
+  background: none;
+  border: none;
+  color: #1A73E8;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 8px;
+}
+
+.success-box {
+  background: #E6F4EA;
+  color: #0D7A5F;
+}
+
+/* ========== FOOTER ========== */
+.login-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #EAECEE;
+  text-align: center;
+}
+
+.register-link {
+  font-size: 0.7rem;
+  color: #1A73E8;
+  text-decoration: none;
+  font-family: monospace;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+}
+
+/* ========== SPINNER ========== */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 700px) {
+  .login-card {
+    padding: 1.2rem;
+  }
+  .wallet-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
