@@ -57,7 +57,5 @@ The file is decrypted client‑side.
 Sharing
 The owner’s wallet decrypts the AES key using their private key.
 
-The AES key is re‑encrypted with the recipient’s public key.
-
-The backend stores this re‑encrypted key for the recipient.
+The AES key is re‑encrypted with the recipient’s public key.end stores this re‑encrypted key for the recipient.
 ### Steps
